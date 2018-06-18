@@ -803,20 +803,25 @@ module ServerRenderingInternal =
 #endif
                 FSharpValue.MakeRecord(propsType, values.ToArray()) :?> 'P
         f props
-
 #endif
 
 open ServerRenderingInternal
 
+[<Emit("typeof $0.ofJSON === 'function' ? $0.ofJSON() : $0")>]
+let private toJSON(x: obj) = x
+
+// Use an extra function to prevent double evaluation of $0 in emit
+let deflate(x: obj) = toJSON x
+
 /// Instantiate an imported React component
 let inline from<'P> (com: ComponentClass<'P>) (props: 'P) (children: ReactElement seq): ReactElement =
-    createElement(com, props, children)
+    createElement(com, deflate props, children)
 
 /// Instantiate a component from a type inheriting React.Component
 /// Example: `ofType<MyComponent,_,_> { myProps = 5 } []`
 let inline ofType<'T,'P,'S when 'T :> Component<'P,'S>> (props: 'P) (children: ReactElement seq): ReactElement =
 #if FABLE_COMPILER
-    createElement(jsConstructor<'T>, props, children)
+    createElement(jsConstructor<'T>, deflate props, children)
 #else
     createServerElement(typeof<'T>, props, children, ServerElementType.Component)
 #endif
@@ -835,7 +840,7 @@ let inline com<'T,'P,'S when 'T :> Component<'P,'S>> (props: 'P) (children: Reac
 /// ```
 let inline ofFunction<'P> (f: 'P -> ReactElement) (props: 'P) (children: ReactElement seq): ReactElement =
 #if FABLE_COMPILER
-    createElement(f, props, children)
+    createElement(f, deflate props, children)
 #else
     createServerElementByFn(f, props, children)
 #endif
@@ -848,7 +853,7 @@ let inline fn<'P> (f: 'P -> ReactElement) (props: 'P) (children: ReactElement se
 /// Instantiate an imported React component. The first two arguments must be string literals, "default" can be used for the first one.
 /// Example: `ofImport "Map" "leaflet" { x = 10; y = 50 } []`
 let inline ofImport<'P> (importMember: string) (importPath: string) (props: 'P) (children: ReactElement seq): ReactElement =
-    createElement(import importMember importPath, props, children)
+    createElement(import importMember importPath, deflate props, children)
 
 #if FABLE_COMPILER
 /// Alias of `ofString`
